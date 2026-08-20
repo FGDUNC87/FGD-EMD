@@ -1,258 +1,1669 @@
-import streamlit as st
-import pandas as pd
-import plotly.express as px
+!DOCTYPE html>
+<html lang="en">
 
-st.set_page_config(
-    page_title="FGD Electrical Maintenance",
-    page_icon="⚡",
-    layout="wide"
-)
+<head>
 
-# ---------------------------------------------------------
-# Demo data - replace with PostgreSQL queries
-# ---------------------------------------------------------
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-zones = pd.DataFrame({
-    "Zone": [
-        "Absorber Area",
-        "Booster Fans",
-        "Limestone Preparation",
-        "Gypsum Dewatering",
-        "Transformer Yard",
-        "HT Switchgear",
-        "LT Switchgear"
-    ],
-    "Status": [
-        "NORMAL",
-        "NORMAL",
-        "WARNING",
-        "NORMAL",
-        "NORMAL",
-        "CRITICAL",
-        "NORMAL"
-    ]
-})
+<title>FGD Inventory & Safety Management System</title>
 
-pm_data = pd.DataFrame({
-    "Month": ["Apr", "May", "Jun", "Jul", "Aug", "Sep"],
-    "Planned": [82, 91, 87, 95, 90, 88],
-    "Completed": [79, 88, 82, 90, 86, 84]
-})
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
-spares = pd.DataFrame({
-    "Part": [
-        "6.6kV Breaker",
-        "Motor Bearing",
-        "HT Fuse",
-        "VFD Control Card",
-        "CT 200/5A"
-    ],
-    "Stock": [1, 14, 4, 2, 5],
-    "Minimum": [2, 8, 6, 2, 2]
-})
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
-# ---------------------------------------------------------
-# CSS
-# ---------------------------------------------------------
-
-st.markdown("""
 <style>
-.kpi {
-    padding: 18px;
-    border-radius: 10px;
-    background-color: #17212b;
-    border: 1px solid #304050;
-    text-align: center;
+
+body{
+    background:#f4f6f9;
 }
 
-.kpi-title {
-    color: #9aa7b2;
-    font-size: 14px;
+.card{
+    box-shadow:0 2px 8px #ccc;
+    border:none;
 }
 
-.kpi-value {
-    color: white;
-    font-size: 30px;
-    font-weight: 700;
+.table{
+    font-size:13px;
+    vertical-align:middle;
 }
 
-.status-normal {
-    background-color: #176b45;
-    color: white;
-    padding: 8px;
-    border-radius: 8px;
-    text-align: center;
+.table th{
+    white-space:nowrap;
 }
 
-.status-warning {
-    background-color: #a66b00;
-    color: white;
-    padding: 8px;
-    border-radius: 8px;
-    text-align: center;
+.table td{
+    white-space:nowrap;
 }
 
-.status-critical {
-    background-color: #a51d2d;
-    color: white;
-    padding: 8px;
-    border-radius: 8px;
-    text-align: center;
+.dashboard-card{
+    min-height:120px;
 }
+
+.status-badge{
+    padding:5px 9px;
+    border-radius:5px;
+    font-size:12px;
+    font-weight:bold;
+}
+
+.status-in{
+    background:#198754;
+    color:white;
+}
+
+.status-low{
+    background:#ffc107;
+    color:#000;
+}
+
+.status-out{
+    background:#dc3545;
+    color:white;
+}
+
+.training-done{
+    background:#d1e7dd;
+    color:#0f5132;
+    font-weight:bold;
+}
+
+.training-pending{
+    background:#fff3cd;
+    color:#664d03;
+    font-weight:bold;
+}
+
+.nav-tabs .nav-link{
+    font-weight:bold;
+}
+
+.module-header{
+    min-width:130px;
+    white-space:normal !important;
+    text-align:center;
+}
+
+.small-input{
+    width:70px;
+}
+
+.progress{
+    height:22px;
+}
+
 </style>
-""", unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# Header
-# ---------------------------------------------------------
+</head>
 
-st.title("⚡ FGD Electrical Maintenance Dashboard")
 
-c1, c2 = st.columns([5, 1])
+<body>
 
-with c2:
-    dark_mode = st.toggle("Dark Mode", value=True)
 
-st.caption(
-    "Thermal Power Plant • Flue Gas Desulfurization Electrical Systems"
-)
+<div class="container-fluid mt-4">
 
-# ---------------------------------------------------------
-# KPI Cards
-# ---------------------------------------------------------
+<h2 class="text-center mb-4">
+    FGD Inventory & Safety Management System
+</h2>
 
-k1, k2, k3, k4 = st.columns(4)
 
-def kpi(column, title, value):
-    column.markdown(
-        f"""
-        <div class="kpi">
-            <div class="kpi-title">{title}</div>
-            <div class="kpi-value">{value}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+<!-- ================= NAVIGATION ================= -->
 
-kpi(k1, "Total Electrical Assets", "428")
-kpi(k2, "PM Compliance", "94.6%")
-kpi(k3, "Open Breakdowns", "07")
-kpi(k4, "Critical Spare Alerts", "12")
+<ul class="nav nav-tabs" id="mainTabs">
 
-st.divider()
+<li class="nav-item">
 
-# ---------------------------------------------------------
-# System Status
-# ---------------------------------------------------------
+<button class="nav-link active"
+        data-bs-toggle="tab"
+        data-bs-target="#inventoryTab">
 
-st.subheader("System Status")
+    Electrical Spare Parts
 
-cols = st.columns(len(zones))
+</button>
 
-for col, (_, row) in zip(cols, zones.iterrows()):
+</li>
 
-    status = row["Status"]
+<li class="nav-item">
 
-    if status == "NORMAL":
-        css = "status-normal"
-        icon = "🟢"
-    elif status == "WARNING":
-        css = "status-warning"
-        icon = "🟡"
-    else:
-        css = "status-critical"
-        icon = "🔴"
+<button class="nav-link"
+        data-bs-toggle="tab"
+        data-bs-target="#safetyTab">
 
-    col.markdown(
-        f"""
-        <div class="{css}">
-            {icon}<br>
-            <b>{row['Zone']}</b><br>
-            {status}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    FGD Worker Safety Training
 
-# ---------------------------------------------------------
-# PM Compliance
-# ---------------------------------------------------------
+</button>
 
-st.subheader("Preventive Maintenance Compliance")
+</li>
 
-pm_data["Compliance"] = (
-    pm_data["Completed"] /
-    pm_data["Planned"] * 100
-).round(1)
+</ul>
 
-fig = px.line(
-    pm_data,
-    x="Month",
-    y="Compliance",
-    markers=True,
-    range_y=[70, 105],
-    labels={"Compliance": "PM Compliance (%)"}
-)
 
-fig.add_hline(
-    y=90,
-    line_dash="dash",
-    line_color="orange",
-    annotation_text="Minimum Target"
-)
+<div class="tab-content">
 
-st.plotly_chart(fig, use_container_width=True)
 
-# ---------------------------------------------------------
-# Inventory
-# ---------------------------------------------------------
+<!-- =====================================================
+     INVENTORY TAB
+===================================================== -->
 
-st.subheader("Critical Spare Inventory")
+<div class="tab-pane fade show active" id="inventoryTab">
 
-spares["Available"] = spares["Stock"]
-spares["Status"] = spares.apply(
-    lambda x:
-        "🔴 OUT/LOW"
-        if x["Stock"] < x["Minimum"]
-        else "🟢 NORMAL",
-    axis=1
-)
+<div class="row mt-4">
 
-st.dataframe(
-    spares,
-    use_container_width=True,
-    hide_index=True
-)
 
-# ---------------------------------------------------------
-# Equipment Search
-# ---------------------------------------------------------
+<div class="col-md-3 mb-3">
 
-st.subheader("Equipment History")
+<div class="card bg-primary text-white dashboard-card">
 
-tag = st.text_input(
-    "Equipment Tag ID",
-    placeholder="Example: FGD-BL-MTR-01"
-)
+<div class="card-body">
 
-if tag:
+<h5>Total Items</h5>
 
-    st.info(f"Showing maintenance history for {tag}")
+<h2 id="total">0</h2>
 
-    history = pd.DataFrame({
-        "Date": ["05-Aug-2026", "17-Jul-2026", "12-Apr-2026"],
-        "WO": ["PM-842", "BD-771", "PM-612"],
-        "Type": ["PM", "Breakdown", "PM"],
-        "Activity": [
-            "Monthly electrical inspection",
-            "Bearing vibration",
-            "Quarterly PM"
-        ],
-        "Duration (h)": [2.1, 8.5, 2.8]
-    })
+</div>
 
-    st.dataframe(
-        history,
-        use_container_width=True,
-        hide_index=True
-    )
+</div>
+
+</div>
+
+
+<div class="col-md-3 mb-3">
+
+<div class="card bg-success text-white dashboard-card">
+
+<div class="card-body">
+
+<h5>Total Quantity</h5>
+
+<h2 id="qty">0</h2>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="col-md-3 mb-3">
+
+<div class="card bg-warning dashboard-card">
+
+<div class="card-body">
+
+<h5>Low Stock</h5>
+
+<h2 id="low">0</h2>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="col-md-3 mb-3">
+
+<div class="card bg-danger text-white dashboard-card">
+
+<div class="card-body">
+
+<h5>Out Of Stock</h5>
+
+<h2 id="out">0</h2>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="card mt-3">
+
+<div class="card-header">
+
+<button class="btn btn-primary"
+        onclick="openAddItem()">
+
+    + Add Spare Part
+
+</button>
+
+<button class="btn btn-success"
+        onclick="exportInventory()">
+
+    Export Inventory Excel
+
+</button>
+
+<input class="form-control mt-2"
+       id="inventorySearch"
+       placeholder="Search Part / Manufacturer / Part Number"
+       onkeyup="searchInventory()">
+
+</div>
+
+
+<div class="card-body">
+
+<div class="table-responsive">
+
+<table class="table table-bordered table-hover"
+       id="inventoryTable">
+
+<thead class="table-dark">
+
+<tr>
+
+<th>ID</th>
+<th>Part Name</th>
+<th>Category</th>
+<th>Part No</th>
+<th>Manufacturer</th>
+<th>Voltage</th>
+<th>Current</th>
+<th>Qty</th>
+<th>Min Stock</th>
+<th>Rack</th>
+<th>Supplier</th>
+<th>Date</th>
+<th>Status</th>
+<th>Transaction</th>
+<th>Actions</th>
+
+</tr>
+
+</thead>
+
+<tbody id="inventoryData"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- =====================================================
+     SAFETY TAB
+===================================================== -->
+
+<div class="tab-pane fade" id="safetyTab">
+
+
+<!-- SAFETY DASHBOARD -->
+
+<div class="row mt-4">
+
+
+<div class="col-md-3 mb-3">
+
+<div class="card bg-primary text-white dashboard-card">
+
+<div class="card-body">
+
+<h6>FGD Workers Identified</h6>
+
+<h2 id="workerTotal">0</h2>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="col-md-3 mb-3">
+
+<div class="card bg-success text-white dashboard-card">
+
+<div class="card-body">
+
+<h6>Total Training Completed</h6>
+
+<h2 id="trainingTotal">0</h2>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="col-md-3 mb-3">
+
+<div class="card bg-warning dashboard-card">
+
+<div class="card-body">
+
+<h6>Pending Training</h6>
+
+<h2 id="trainingPending">0</h2>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="col-md-3 mb-3">
+
+<div class="card bg-info text-white dashboard-card">
+
+<div class="card-body">
+
+<h6>Overall % Trained</h6>
+
+<h2 id="trainingPercent">0%</h2>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<!-- SAFETY CONTROLS -->
+
+<div class="card mt-3">
+
+<div class="card-header">
+
+<button class="btn btn-primary"
+        onclick="openAddWorker()">
+
+    + Add FGD Worker
+
+</button>
+
+<button class="btn btn-success"
+        onclick="exportSafety()">
+
+    Export Safety Excel
+
+</button>
+
+<input class="form-control mt-2"
+       id="workerSearch"
+       placeholder="Search FGD Worker / Contractor / Designation"
+       onkeyup="searchWorkers()">
+
+</div>
+
+
+<div class="card-body">
+
+
+<h5 class="mb-3">
+    FGD Worker Safety Training Summary
+</h5>
+
+
+<div class="table-responsive">
+
+<table class="table table-bordered table-hover"
+       id="safetyTable">
+
+<thead class="table-dark">
+
+<tr>
+
+<th rowspan="2">ID</th>
+<th rowspan="2">Worker Name</th>
+<th rowspan="2">Contractor</th>
+<th rowspan="2">Designation</th>
+<th rowspan="2">Date Joined</th>
+
+<th colspan="2">Induction Training</th>
+<th colspan="2">General Safety & Hygiene</th>
+<th colspan="2">First-Aid</th>
+<th colspan="2">PPE</th>
+<th colspan="2">Manual Handling</th>
+<th colspan="2">Slips, Trips, Falls</th>
+<th colspan="2">Struck-by / Run-over</th>
+<th colspan="2">Ergonomics</th>
+<th colspan="2">Caught-by / In-between</th>
+<th colspan="2">Fire</th>
+<th colspan="2">Hand Tools</th>
+<th colspan="2">Hazardous Chemicals</th>
+<th colspan="2">Heavy Vehicle Safety</th>
+<th colspan="2">Work at Height</th>
+<th colspan="2">Electrical Safety</th>
+<th colspan="2">Power Tools</th>
+<th colspan="2">Hot Work</th>
+<th colspan="2">Confined Spaces</th>
+<th colspan="2">Excavation</th>
+<th colspan="2">Demolition</th>
+<th colspan="2">Safety Rules & PTW</th>
+<th colspan="2">Rigging & Lifting</th>
+
+<th rowspan="2">Total Identified</th>
+<th rowspan="2">Total Trained</th>
+<th rowspan="2">% Trained</th>
+<th rowspan="2">Actions</th>
+
+</tr>
+
+
+<tr>
+
+<!-- 22 MODULES -->
+
+<script>
+for(let i=0;i<22;i++){
+    document.write("<th class='module-header'>Identified</th>");
+    document.write("<th class='module-header'>Trained</th>");
+}
+</script>
+
+</tr>
+
+</thead>
+
+<tbody id="workerData"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+</div>
+
+</div>
+
+
+
+<!-- =====================================================
+     INVENTORY MODAL
+===================================================== -->
+
+<div class="modal fade" id="itemModal">
+
+<div class="modal-dialog modal-lg">
+
+<div class="modal-content">
+
+<div class="modal-header">
+
+<h5 id="itemModalTitle">
+    Add Electrical Spare
+</h5>
+
+<button class="btn-close"
+        data-bs-dismiss="modal"></button>
+
+</div>
+
+
+<div class="modal-body">
+
+<input type="hidden" id="itemEditId">
+
+
+<div class="row">
+
+
+<div class="col-md-6 mb-2">
+<label>Part Name</label>
+<input class="form-control" id="partName">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Category</label>
+<input class="form-control" id="category">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Part Number</label>
+<input class="form-control" id="partNumber">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Manufacturer</label>
+<input class="form-control" id="manufacturer">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Voltage Rating</label>
+<input class="form-control" id="voltage">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Current Rating</label>
+<input class="form-control" id="current">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Quantity</label>
+<input class="form-control"
+       type="number"
+       min="0"
+       id="itemQuantity">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Minimum Stock</label>
+<input class="form-control"
+       type="number"
+       min="0"
+       id="minStock">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Rack Location</label>
+<input class="form-control" id="rack">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Supplier</label>
+<input class="form-control" id="supplier">
+</div>
+
+
+<div class="col-md-6 mb-2">
+<label>Date</label>
+<input class="form-control"
+       type="date"
+       id="itemDate">
+</div>
+
+
+</div>
+
+</div>
+
+
+<div class="modal-footer">
+
+<button class="btn btn-secondary"
+        data-bs-dismiss="modal">
+
+    Cancel
+
+</button>
+
+<button class="btn btn-primary"
+        onclick="saveItem()">
+
+    Save
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- =====================================================
+     WORKER MODAL
+===================================================== -->
+
+<div class="modal fade" id="workerModal">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<div class="modal-header">
+
+<h5 id="workerModalTitle">
+    Add FGD Worker
+</h5>
+
+<button class="btn-close"
+        data-bs-dismiss="modal"></button>
+
+</div>
+
+
+<div class="modal-body">
+
+<input type="hidden" id="workerEditId">
+
+
+<div class="alert alert-info">
+
+<strong>Department:</strong> FGD
+
+</div>
+
+
+<label>Worker Name</label>
+
+<input class="form-control mb-2"
+       id="workerName"
+       placeholder="Worker Name">
+
+
+<label>Contractor / Company</label>
+
+<input class="form-control mb-2"
+       id="contractor"
+       placeholder="Contractor / Company">
+
+
+<label>Designation</label>
+
+<input class="form-control mb-2"
+       id="designation"
+       placeholder="Technician / Helper / Operator etc.">
+
+
+<label>Date Joined</label>
+
+<input class="form-control mb-2"
+       type="date"
+       id="joinDate">
+
+
+</div>
+
+
+<div class="modal-footer">
+
+<button class="btn btn-secondary"
+        data-bs-dismiss="modal">
+
+    Cancel
+
+</button>
+
+<button class="btn btn-primary"
+        onclick="saveWorker()">
+
+    Save Worker
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<script>
+
+/* =====================================================
+   DATA
+===================================================== */
+
+const trainingModules = [
+
+"Induction Training – incl. hygiene, use of PPE",
+
+"General Safety & Hygiene for Office",
+
+"First-Aid ~10% of outsourced staff",
+
+"PPE",
+
+"Manual Handling",
+
+"Slips, Trips, Falls",
+
+"Struck by / Run Over Hazards",
+
+"Basics of Ergonomics",
+
+"Caught-by/in/between Hazards",
+
+"Fire",
+
+"Hand tools",
+
+"Hazardous Chemicals",
+
+"Heavy Vehicle Safety",
+
+"Work at Height",
+
+"Electrical Safety",
+
+"Power Tools",
+
+"Hot Work",
+
+"Work in Confined Spaces",
+
+"Excavation",
+
+"Demolition - as required",
+
+"Basics of Safety Rules & PTW System",
+
+"Basics of Rigging & Lifting"
+
+];
+
+
+let inventory =
+JSON.parse(localStorage.getItem("fgdInventory")) || [
+
+{
+id:1,
+name:"Fuse 100A",
+category:"Protection",
+partNo:"F100",
+manufacturer:"ABB",
+voltage:"690V",
+current:"100A",
+qty:50,
+min:10,
+rack:"A1",
+supplier:"ABB India",
+date:"2026-01-10"
+},
+
+{
+id:2,
+name:"Power Contactor 400A",
+category:"Switchgear",
+partNo:"AF400",
+manufacturer:"ABB",
+voltage:"690V",
+current:"400A",
+qty:3,
+min:5,
+rack:"C1",
+supplier:"ABB",
+date:"2026-02-01"
+}
+
+];
+
+
+let workers =
+JSON.parse(localStorage.getItem("fgdWorkers")) || [];
+
+
+let itemModal;
+let workerModal;
+
+
+/* =====================================================
+   INITIALIZATION
+===================================================== */
+
+document.addEventListener("DOMContentLoaded",function(){
+
+itemModal =
+new bootstrap.Modal(
+document.getElementById("itemModal")
+);
+
+workerModal =
+new bootstrap.Modal(
+document.getElementById("workerModal")
+);
+
+renderInventory();
+
+renderWorkers();
+
+});
+
+
+/* =====================================================
+   LOCAL STORAGE
+===================================================== */
+
+function saveInventoryStorage(){
+
+localStorage.setItem(
+"fgdInventory",
+JSON.stringify(inventory)
+);
+
+}
+
+
+function saveWorkerStorage(){
+
+localStorage.setItem(
+"fgdWorkers",
+JSON.stringify(workers)
+);
+
+}
+
+
+/* =====================================================
+   INVENTORY
+===================================================== */
+
+function renderInventory(){
+
+let tbody =
+document.getElementById("inventoryData");
+
+tbody.innerHTML="";
+
+
+inventory.forEach((item,index)=>{
+
+let status =
+item.qty <= 0
+? "Out Of Stock"
+: item.qty <= item.min
+? "Low Stock"
+: "In Stock";
+
+
+let statusClass =
+item.qty <= 0
+? "status-out"
+: item.qty <= item.min
+? "status-low"
+: "status-in";
+
+
+let row = document.createElement("tr");
+
+
+row.innerHTML=`
+
+<td>${index+1}</td>
+
+<td>${escapeHTML(item.name)}</td>
+
+<td>${escapeHTML(item.category)}</td>
+
+<td>${escapeHTML(item.partNo)}</td>
+
+<td>${escapeHTML(item.manufacturer)}</td>
+
+<td>${escapeHTML(item.voltage)}</td>
+
+<td>${escapeHTML(item.current)}</td>
+
+<td>${item.qty}</td>
+
+<td>${item.min}</td>
+
+<td>${escapeHTML(item.rack)}</td>
+
+<td>${escapeHTML(item.supplier)}</td>
+
+<td>${item.date}</td>
+
+<td>
+<span class="status-badge ${statusClass}">
+${status}
+</span>
+</td>
+
+<td>
+
+<button class="btn btn-sm btn-danger"
+onclick="issueItem(${item.id})">
+
+Issue
+
+</button>
+
+<button class="btn btn-sm btn-success"
+onclick="returnItem(${item.id})">
+
+Return
+
+</button>
+
+</td>
+
+<td>
+
+<button class="btn btn-sm btn-warning"
+onclick="editItem(${item.id})">
+
+Edit
+
+</button>
+
+<button class="btn btn-sm btn-dark"
+onclick="deleteItem(${item.id})">
+
+Delete
+
+</button>
+
+</td>
+
+`;
+
+tbody.appendChild(row);
+
+});
+
+
+updateInventoryDashboard();
+
+}
+
+
+function openAddItem(){
+
+document.getElementById("itemModalTitle").innerText =
+"Add Electrical Spare";
+
+document.getElementById("itemEditId").value="";
+
+document.getElementById("partName").value="";
+document.getElementById("category").value="";
+document.getElementById("partNumber").value="";
+document.getElementById("manufacturer").value="";
+document.getElementById("voltage").value="";
+document.getElementById("current").value="";
+document.getElementById("itemQuantity").value="";
+document.getElementById("minStock").value="";
+document.getElementById("rack").value="";
+document.getElementById("supplier").value="";
+document.getElementById("itemDate").value=
+new Date().toISOString().split("T")[0];
+
+itemModal.show();
+
+}
+
+
+function editItem(id){
+
+let item =
+inventory.find(x=>x.id===id);
+
+if(!item)return;
+
+
+document.getElementById("itemModalTitle").innerText =
+"Edit Electrical Spare";
+
+document.getElementById("itemEditId").value=id;
+
+document.getElementById("partName").value=item.name;
+document.getElementById("category").value=item.category;
+document.getElementById("partNumber").value=item.partNo;
+document.getElementById("manufacturer").value=item.manufacturer;
+document.getElementById("voltage").value=item.voltage;
+document.getElementById("current").value=item.current;
+document.getElementById("itemQuantity").value=item.qty;
+document.getElementById("minStock").value=item.min;
+document.getElementById("rack").value=item.rack;
+document.getElementById("supplier").value=item.supplier;
+document.getElementById("itemDate").value=item.date;
+
+itemModal.show();
+
+}
+
+
+function saveItem(){
+
+let editId =
+parseInt(document.getElementById("itemEditId").value);
+
+
+let item={
+
+id:
+editId ||
+Date.now(),
+
+name:
+document.getElementById("partName").value.trim(),
+
+category:
+document.getElementById("category").value.trim(),
+
+partNo:
+document.getElementById("partNumber").value.trim(),
+
+manufacturer:
+document.getElementById("manufacturer").value.trim(),
+
+voltage:
+document.getElementById("voltage").value.trim(),
+
+current:
+document.getElementById("current").value.trim(),
+
+qty:
+parseInt(document.getElementById("itemQuantity").value)||0,
+
+min:
+parseInt(document.getElementById("minStock").value)||0,
+
+rack:
+document.getElementById("rack").value.trim(),
+
+supplier:
+document.getElementById("supplier").value.trim(),
+
+date:
+document.getElementById("itemDate").value
+
+};
+
+
+if(!item.name){
+
+alert("Please enter Part Name.");
+
+return;
+
+}
+
+
+if(editId){
+
+let index =
+inventory.findIndex(x=>x.id===editId);
+
+inventory[index]=item;
+
+}else{
+
+inventory.push(item);
+
+}
+
+
+saveInventoryStorage();
+
+renderInventory();
+
+itemModal.hide();
+
+}
+
+
+function deleteItem(id){
+
+let item =
+inventory.find(x=>x.id===id);
+
+if(confirm(
+"Delete "+item.name+"?"
+)){
+
+inventory =
+inventory.filter(x=>x.id!==id);
+
+saveInventoryStorage();
+
+renderInventory();
+
+}
+
+}
+
+
+function issueItem(id){
+
+let item =
+inventory.find(x=>x.id===id);
+
+if(item.qty>0){
+
+item.qty--;
+
+saveInventoryStorage();
+
+renderInventory();
+
+}else{
+
+alert("Item is already out of stock.");
+
+}
+
+}
+
+
+function returnItem(id){
+
+let item =
+inventory.find(x=>x.id===id);
+
+item.qty++;
+
+saveInventoryStorage();
+
+renderInventory();
+
+}
+
+
+function updateInventoryDashboard(){
+
+let total =
+inventory.length;
+
+let qty =
+inventory.reduce(
+(sum,x)=>sum+x.qty,0
+);
+
+let low =
+inventory.filter(
+x=>x.qty>0 && x.qty<=x.min
+).length;
+
+let out =
+inventory.filter(
+x=>x.qty<=0
+).length;
+
+
+document.getElementById("total").innerText=total;
+document.getElementById("qty").innerText=qty;
+document.getElementById("low").innerText=low;
+document.getElementById("out").innerText=out;
+
+}
+
+
+function searchInventory(){
+
+let value =
+document.getElementById("inventorySearch")
+.value.toLowerCase();
+
+document.querySelectorAll(
+"#inventoryData tr"
+).forEach(row=>{
+
+row.style.display =
+row.innerText.toLowerCase()
+.includes(value)
+? ""
+: "none";
+
+});
+
+}
+
+
+function exportInventory(){
+
+let table =
+document.getElementById("inventoryTable");
+
+let wb =
+XLSX.utils.table_to_book(table);
+
+XLSX.writeFile(
+wb,
+"FGD_Electrical_Inventory.xlsx"
+);
+
+}
+
+
+/* =====================================================
+   FGD WORKERS
+===================================================== */
+
+function openAddWorker(){
+
+document.getElementById("workerModalTitle").innerText =
+"Add FGD Worker";
+
+document.getElementById("workerEditId").value="";
+
+document.getElementById("workerName").value="";
+document.getElementById("contractor").value="";
+document.getElementById("designation").value="";
+
+document.getElementById("joinDate").value=
+new Date().toISOString().split("T")[0];
+
+workerModal.show();
+
+}
+
+
+function saveWorker(){
+
+let editId =
+document.getElementById("workerEditId").value;
+
+
+let worker={
+
+id:
+editId
+? parseInt(editId)
+: Date.now(),
+
+name:
+document.getElementById("workerName").value.trim(),
+
+contractor:
+document.getElementById("contractor").value.trim(),
+
+designation:
+document.getElementById("designation").value.trim(),
+
+joinDate:
+document.getElementById("joinDate").value,
+
+department:"FGD",
+
+training:
+editId
+? workers.find(x=>x.id===parseInt(editId)).training
+: trainingModules.map(()=>false)
+
+};
+
+
+if(!worker.name){
+
+alert("Please enter worker name.");
+
+return;
+
+}
+
+
+if(editId){
+
+let index =
+workers.findIndex(
+x=>x.id===parseInt(editId)
+);
+
+workers[index]=worker;
+
+}else{
+
+workers.push(worker);
+
+}
+
+
+saveWorkerStorage();
+
+renderWorkers();
+
+workerModal.hide();
+
+}
+
+
+function renderWorkers(){
+
+let tbody =
+document.getElementById("workerData");
+
+tbody.innerHTML="";
+
+
+workers.forEach((worker,index)=>{
+
+let totalIdentified =
+trainingModules.length;
+
+
+let totalTrained =
+worker.training.filter(x=>x===true).length;
+
+
+let percent =
+totalIdentified
+? ((totalTrained/totalIdentified)*100).toFixed(1)
+: 0;
+
+
+let row =
+document.createElement("tr");
+
+
+let html=`
+
+<td>${index+1}</td>
+
+<td>
+<strong>${escapeHTML(worker.name)}</strong>
+</td>
+
+<td>${escapeHTML(worker.contractor)}</td>
+
+<td>${escapeHTML(worker.designation)}</td>
+
+<td>${worker.joinDate}</td>
+`;
+
+
+worker.training.forEach((trained,moduleIndex)=>{
+
+html += `
+
+<td class="text-center">
+
+<input type="checkbox"
+       title="${trainingModules[moduleIndex]} identified"
+       checked>
+
+</td>
+
+<td class="text-center
+${trained ? 'training-done' : 'training-pending'}">
+
+<input type="checkbox"
+       ${trained ? "checked" : ""}
+       onchange="toggleTraining(${worker.id},${moduleIndex},this.checked)">
+
+${trained ? "Trained" : "Pending"}
+
+</td>
+
+`;
+
+});
+
+
+html += `
+
+<td>
+<strong>${totalIdentified}</strong>
+</td>
+
+<td>
+<strong class="text-success">
+${totalTrained}
+</strong>
+</td>
+
+<td style="min-width:130px">
+
+<div class="progress">
+
+<div class="progress-bar
+${percent>=80 ? 'bg-success' :
+  percent>=50 ? 'bg-warning' :
+  'bg-danger'}"
+     
+style="width:${percent}%">
+
+${percent}%
+
+</div>
+
+</div>
+
+</td>
+
+<td>
+
+<button class="btn btn-sm btn-warning"
+onclick="editWorker(${worker.id})">
+
+Edit
+
+</button>
+
+<button class="btn btn-sm btn-danger"
+onclick="deleteWorker(${worker.id})">
+
+Delete
+
+</button>
+
+</td>
+
+`;
+
+
+row.innerHTML=html;
+
+tbody.appendChild(row);
+
+});
+
+
+updateSafetyDashboard();
+
+}
+
+
+function toggleTraining(
+workerId,
+moduleIndex,
+value
+){
+
+let worker =
+workers.find(
+x=>x.id===workerId
+);
+
+if(!worker)return;
+
+
+worker.training[moduleIndex]=value;
+
+
+saveWorkerStorage();
+
+renderWorkers();
+
+}
+
+
+/* =====================================================
+   EDIT WORKER
+===================================================== */
+
+function editWorker(id){
+
+let worker =
+workers.find(x=>x.id===id);
+
+if(!worker)return;
+
+
+document.getElementById("workerModalTitle").innerText =
+"Edit FGD Worker";
+
+document.getElementById("workerEditId").value=id;
+
+document.getElementById("workerName").value=
+worker.name;
+
+document.getElementById("contractor").value=
+worker.contractor;
+
+document.getElementById("designation").value=
+worker.designation;
+
+document.getElementById("joinDate").value=
+worker.joinDate;
+
+workerModal.show();
+
+}
+
+
+/* =====================================================
+   DELETE WORKER
+===================================================== */
+
+function deleteWorker(id){
+
+let worker =
+workers.find(x=>x.id===id);
+
+
+if(confirm(
+"Delete FGD worker "+worker.name+"?"
+)){
+
+workers =
+workers.filter(x=>x.id!==id);
+
+saveWorkerStorage();
+
+renderWorkers();
+
+}
+
+}
+
+
+/* =====================================================
+   SAFETY DASHBOARD
+===================================================== */
+
+function updateSafetyDashboard(){
+
+let workersCount =
+workers.length;
+
+
+let totalTraining =
+workers.reduce(
+(sum,w)=>
+sum+w.training.filter(x=>x===true).length,
+0
+);
+
+
+let totalRequirements =
+workers.length *
+trainingModules.length;
+
+
+let pending =
+totalRequirements-totalTraining;
+
+
+let percent =
+totalRequirements
+? ((totalTraining/totalRequirements)*100).toFixed(1)
+: 0;
+
+
+document.getElementById("workerTotal")
+.innerText=workersCount;
+
+
+document.getElementById("trainingTotal")
+.innerText=totalTraining;
+
+
+document.getElementById("trainingPending")
+.innerText=pending;
+
+
+document.getElementById("trainingPercent")
+.innerText=
+percent+"%";
+
+}
+
+
+/* =====================================================
+   SEARCH WORKERS
+===================================================== */
+
+function searchWorkers(){
+
+let value =
+document.getElementById("workerSearch")
+.value.toLowerCase();
+
+
+document.querySelectorAll(
+"#workerData tr"
+).forEach(row=>{
+
+row.style.display =
+row.innerText.toLowerCase()
+.includes(value)
+? ""
+: "none";
+
+});
+
+}
+
+
+/* =====================================================
+   SAFETY EXCEL EXPORT
+===================================================== */
+
+function exportSafety(){
+
+let table =
+document.getElementById("safetyTable");
+
+
+let wb =
+XLSX.utils.table_to_book(table);
+
+
+XLSX.writeFile(
+wb,
+"FGD_Worker_Safety_Training.xlsx"
+);
+
+}
+
+
+/* =====================================================
+   HTML ESCAPE
+===================================================== */
+
+function escapeHTML(value){
+
+return String(value)
+.replace(/&/g,"&amp;")
+.replace(/</g,"&lt;")
+.replace(/>/g,"&gt;")
+.replace(/"/g,"&quot;")
+.replace(/'/g,"&#039;");
+
+}
+
+</script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+
+</html>
